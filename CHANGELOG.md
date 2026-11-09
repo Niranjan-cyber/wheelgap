@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `--online` no longer looks up packages from a private index on public PyPI: only packages whose lockfile index is PyPI are re-checked, the rest keep their locked files, and a note says how many. `poetry.lock` packages now record their source index too. (#133)
+
 ## 0.7.0 (2026-11-09)
 
 Accept known gaps without hiding them: `--ignore NAME`, or `ignore = [...]` in `[tool.wheelgap]`, takes a package out of the table, the counts and the exit code, and lists it as ignored in every output format. Also new: a [recipes page](https://github.com/wheelgap/wheelgap/blob/main/docs/recipes.md) (#123, thanks [@moelomda](https://github.com/moelomda)) and [AGENTS.md](https://github.com/wheelgap/wheelgap/blob/main/AGENTS.md) for coding agents working on wheelgap.
