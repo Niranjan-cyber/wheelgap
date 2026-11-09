@@ -50,7 +50,7 @@ class Package:
     spec: str | None = None
     # Files of a pinned release that the index marks as yanked (see check.status_for).
     yanked: frozenset[str] = frozenset()
-    # uv.lock / pylock.toml: the index the lock says the package came from, e.g. https://pypi.org/simple.
+    # uv.lock / pylock.toml / poetry.lock: the index the lock says the package came from, e.g. https://pypi.org/simple.
     registry: str | None = None
 
     @property

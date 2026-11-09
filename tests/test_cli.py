@@ -868,7 +868,19 @@ PRIVATE_POETRY_LOCK = (
 )
 
 
-@pytest.mark.parametrize(("name", "lock"), [("uv.lock", PRIVATE_UV_LOCK), ("poetry.lock", PRIVATE_POETRY_LOCK)])
+# And in a pylock.toml, through the package's index key.
+PRIVATE_PYLOCK = (
+    'lock-version = "1.0"\ncreated-by = "pip"\n\n'
+    '[[packages]]\nname = "purewheel"\nversion = "3.1"\nindex = "https://pkgs.example.com/simple"\n'
+    'wheels = [{ name = "purewheel-3.1-cp313-cp313-win_amd64.whl", '
+    'url = "https://pkgs.example.com/purewheel-3.1-cp313-cp313-win_amd64.whl", hashes = { sha256 = "00" } }]\n'
+)
+
+
+@pytest.mark.parametrize(
+    ("name", "lock"),
+    [("uv.lock", PRIVATE_UV_LOCK), ("poetry.lock", PRIVATE_POETRY_LOCK), ("pylock.toml", PRIVATE_PYLOCK)],
+)
 def test_online_keeps_private_index_packages_off_pypi(capsys, fake_pypi, tmp_path, name, lock):
     (tmp_path / name).write_text(lock, encoding="utf-8")
     code, out, err = run(capsys, str(tmp_path), "--online", "-p", "3.13", "-t", "linux-x86_64")
@@ -877,3 +889,17 @@ def test_online_keeps_private_index_packages_off_pypi(capsys, fake_pypi, tmp_pat
     assert code == 1
     assert "purewheel" in out
     assert "--online looks up PyPI packages only; kept the locked files of 1 package from other indexes" in err
+
+
+def test_online_quiet_hides_the_private_index_note(capsys, fake_pypi, tmp_path):
+    (tmp_path / "uv.lock").write_text(PRIVATE_UV_LOCK, encoding="utf-8")
+    code, _, err = run(capsys, str(tmp_path), "--online", "-q", "-p", "3.13", "-t", "linux-x86_64")
+    assert code == 1 and err == ""
+
+
+def test_online_still_warns_about_private_packages_locked_for_other_pythons(capsys, fake_pypi, tmp_path):
+    # --online can't refresh a private-index package, so a lock made for 3.12 may lack its 3.13 wheels.
+    lock = LOCK_312_ONLY.replace('registry = "https://pypi.org/simple"', 'registry = "https://download.example/whl"')
+    (tmp_path / "uv.lock").write_text(lock, encoding="utf-8")
+    code, _, err = run(capsys, str(tmp_path), "--online", "-q", "-p", "3.13", "-t", "linux-x86_64")
+    assert fake_pypi == [] and "1 from other indexes may show false gaps" in err

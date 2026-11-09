@@ -17,7 +17,7 @@ from .api import running_python
 from .check import Row, Status, check, explain, has_sdist
 from .dockerfile import DockerfileError, read_dockerfile
 from .pyodide import PyodideLock, PyodideLockError, apply_bundled, check_targets, load_pyodide_lock
-from .pypi import check_index_url, fill_all, recheck_lock
+from .pypi import check_index_url, fill_all, is_pypi, recheck_lock
 from .sources import Package, SourceError, load_inputs, pythons_outside_lock
 from .targets import (
     ALIASES,
@@ -623,21 +623,25 @@ def main(argv: list[str] | None = None) -> int:
             f"package{'s' if other_index != 1 else ''} from other indexes",
             file=sys.stderr,
         )
-    if not args.online:
-        for s in sources:
-            if outside := pythons_outside_lock(s, targets):
+    for s in sources:
+        if outside := pythons_outside_lock(s, targets):
+            if args.online:  # fill_all looked up the PyPI packages; the others kept the lock's files
+                other = sum(1 for p in s.packages if not p.skip and p.files is not None and not is_pypi(p.registry))
+                failed = 0
+                if not other:
+                    continue
+            else:
                 other, failed = recheck_lock(s.packages)
-                note = (
-                    f"wheelgap: note: {s.label} is locked for Python {s.requires_python}, so it may be missing "
-                    f"wheels for Python {', '.join(outside)}; looked its PyPI packages up on the index too"
-                )
-                unchecked = [f"{other} from other indexes"] * bool(other) + [
-                    f"{failed} that couldn't be looked up"
-                ] * bool(failed)
-                if unchecked:
-                    note += f"; {' and '.join(unchecked)} may show false gaps for those Pythons"
-                if unchecked or not quiet:  # quiet runs stay quiet unless the answer may be wrong
-                    print(note, file=sys.stderr)
+            note = (
+                f"wheelgap: note: {s.label} is locked for Python {s.requires_python}, so it may be missing "
+                f"wheels for Python {', '.join(outside)}; looked its PyPI packages up on the index too"
+            )
+            unchecked = [f"{other} from other indexes"] * bool(other)
+            unchecked += [f"{failed} that couldn't be looked up"] * bool(failed)
+            if unchecked:
+                note += f"; {' and '.join(unchecked)} may show false gaps for those Pythons"
+            if unchecked or not quiet:  # quiet runs stay quiet unless the answer may be wrong
+                print(note, file=sys.stderr)
     skipped = [p for p in packages if p.skip]
     rows = [r for r in check(sources, targets) if r.needed]
     if pyodide_lock:
