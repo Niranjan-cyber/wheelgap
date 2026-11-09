@@ -187,6 +187,16 @@ def fill(pkg: Package) -> Package:
 PYPI_SIMPLE = "https://pypi.org/simple"
 
 
+def is_pypi(registry: str | None) -> bool:
+    """Whether a package pinned to `registry` (a PEP 503 simple index, if set) comes from PyPI itself.
+
+    Unset means the default index, and the usual spellings/aliases of pypi.org all count."""
+    if not registry:
+        return True
+    host = urlparse(registry).netloc.lower().partition(":")[0]
+    return host in {"pypi.org", "www.pypi.org", "pypi.python.org", "files.pythonhosted.org"}
+
+
 def recheck_lock(packages: list[Package]) -> tuple[int, int]:
     """Add the index's files to lockfile packages whose lock may be missing some (see pythons_outside_lock).
 
@@ -194,7 +204,7 @@ def recheck_lock(packages: list[Package]) -> tuple[int, int]:
     whose lookup fails stays as the lock described it. Returns (packages from other indexes, failed lookups).
     """
     locked = [p for p in packages if not p.skip and p.files is not None and p.version]  # pinned: same release
-    todo = [p for p in locked if (p.registry or PYPI_SIMPLE).rstrip("/") == PYPI_SIMPLE]
+    todo = [p for p in locked if is_pypi(p.registry)]
     saved = [p.files or [] for p in todo]
     fill_all(todo, refresh=True)
     failed = 0
@@ -207,9 +217,13 @@ def recheck_lock(packages: list[Package]) -> tuple[int, int]:
     return len(locked) - len(todo), failed
 
 
-def fill_all(packages: list[Package], refresh: bool = False, workers: int = 16) -> None:
-    todo = [p for p in packages if not p.skip and (refresh or p.files is None)]
+def fill_all(packages: list[Package], refresh: bool = False, workers: int = 16) -> int:
+    """Look packages up on PyPI. Packages the lock says came from another index are left alone: PyPI
+    doesn't know them. Returns how many were left alone for that reason."""
+    todo = [p for p in packages if not p.skip and is_pypi(p.registry) and (refresh or p.files is None)]
+    other = len([p for p in packages if not p.skip and not is_pypi(p.registry)])
     if not todo:
-        return
+        return other
     with ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(fill, todo))
+    return other

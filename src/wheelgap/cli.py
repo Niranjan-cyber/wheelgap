@@ -616,7 +616,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     packages = [p for s in sources for p in s.packages]
-    fill_all(packages, refresh=args.online)
+    other_index = fill_all(packages, refresh=args.online)
+    if args.online and other_index and not quiet:
+        print(
+            f"wheelgap: note: {other_index} package{'s' if other_index != 1 else ''} from other indexes "
+            f"checked against the lockfile only (not looked up on PyPI)",
+            file=sys.stderr,
+        )
     if not args.online:
         for s in sources:
             if outside := pythons_outside_lock(s, targets):

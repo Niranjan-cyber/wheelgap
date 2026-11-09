@@ -212,6 +212,9 @@ def parse_poetry_lock(path: Path) -> Source:
         if src_type in ("git", "hg", "svn", "bzr", "directory", "file", "url"):
             pkg.skip = src_type
         else:
+            # A "legacy" source is a simple index: remember it so the package isn't looked up on PyPI.
+            url = p.get("source", {}).get("url")
+            pkg.registry = url if isinstance(url, str) else None
             entries = p.get("files")
             if entries is None:
                 entries = legacy_files.get(p["name"])
