@@ -22,10 +22,10 @@ UV_LOCK = (
 POETRY_LOCK = (
     '[[package]]\nname = "purewheel"\nversion = "3.1"\ndescription = ""\noptional = false\n'
     'python-versions = ">=3.9"\ngroups = ["main"]\n'
-    'files = [\n'
+    "files = [\n"
     '    {file = "purewheel-3.1-cp313-cp313-win_amd64.whl", hash = "sha256:00"},\n'
-    ']\n\n'
-    '[package.source]\n'
+    "]\n\n"
+    "[package.source]\n"
     'type = "legacy"\n'
     'url = "https://pkgs.example.com/simple"\n'
     'reference = "private"\n\n'
@@ -68,3 +68,21 @@ def test_parse_poetry_lock_records_registry(tmp_path):
     (src,) = [parse_poetry_lock(path)]
     (pkg,) = src.packages
     assert pkg.registry == "https://pkgs.example.com/simple"
+
+
+def test_without_online_a_private_package_with_no_locked_files_is_still_looked_up(fake_pypi):
+    # review on #133: the filter must only apply to --online, so behaviour without it is unchanged
+    from wheelgap.pypi import fill_all
+    from wheelgap.sources import Package
+
+    pkg = Package(name="purewheel", version="1.0", files=None, registry="https://pkgs.example.com/simple")
+    assert fill_all([pkg]) == 0
+    assert [url for url in fake_pypi if "purewheel" in url], fake_pypi
+
+
+def test_only_the_exact_pypi_simple_index_counts_as_pypi():
+    # review on #133: the same rule recheck_lock() used before
+    from wheelgap.pypi import is_pypi
+
+    assert is_pypi(None) and is_pypi("https://pypi.org/simple") and is_pypi("https://pypi.org/simple/")
+    assert not is_pypi("https://pkgs.example.com/simple") and not is_pypi("https://pypi.python.org/simple")

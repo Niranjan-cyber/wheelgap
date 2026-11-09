@@ -188,13 +188,8 @@ PYPI_SIMPLE = "https://pypi.org/simple"
 
 
 def is_pypi(registry: str | None) -> bool:
-    """Whether a package pinned to `registry` (a PEP 503 simple index, if set) comes from PyPI itself.
-
-    Unset means the default index, and the usual spellings/aliases of pypi.org all count."""
-    if not registry:
-        return True
-    host = urlparse(registry).netloc.lower().partition(":")[0]
-    return host in {"pypi.org", "www.pypi.org", "pypi.python.org", "files.pythonhosted.org"}
+    """Whether a package pinned to `registry` comes from PyPI: unset (the default index) or exactly PYPI_SIMPLE."""
+    return (registry or PYPI_SIMPLE).rstrip("/") == PYPI_SIMPLE
 
 
 def recheck_lock(packages: list[Package]) -> tuple[int, int]:
@@ -218,12 +213,12 @@ def recheck_lock(packages: list[Package]) -> tuple[int, int]:
 
 
 def fill_all(packages: list[Package], refresh: bool = False, workers: int = 16) -> int:
-    """Look packages up on PyPI. Packages the lock says came from another index are left alone: PyPI
-    doesn't know them. Returns how many were left alone for that reason."""
-    todo = [p for p in packages if not p.skip and is_pypi(p.registry) and (refresh or p.files is None)]
-    other = len([p for p in packages if not p.skip and not is_pypi(p.registry)])
-    if not todo:
-        return other
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        list(pool.map(fill, todo))
-    return other
+    """Look packages up on PyPI. With refresh (--online), a package the lock says came from another index keeps
+    its locked files instead: PyPI doesn't know it. A package with no files is still looked up, as before.
+    Returns how many kept their locked files for that reason."""
+    kept = {id(p) for p in packages if refresh and not p.skip and p.files is not None and not is_pypi(p.registry)}
+    todo = [p for p in packages if not p.skip and id(p) not in kept and (refresh or p.files is None)]
+    if todo:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(fill, todo))
+    return len(kept)

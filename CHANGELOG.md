@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- `--online` no longer looks up packages from a private index on public PyPI: only packages whose lockfile index is PyPI are re-checked, the rest keep their locked files, and a note says how many. `poetry.lock` packages now record their source index too. (#133)
+- `--online` no longer looks up packages from a private index on public PyPI: only packages whose lockfile index is PyPI are re-checked, the rest keep their locked files, and a note says how many. `poetry.lock` packages now record their source index too. (#133, thanks [@Niranjan-cyber](https://github.com/Niranjan-cyber))
 
 ## 0.7.0 (2026-11-09)
 
