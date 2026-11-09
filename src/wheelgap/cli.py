@@ -619,8 +619,8 @@ def main(argv: list[str] | None = None) -> int:
     other_index = fill_all(packages, refresh=args.online)
     if args.online and other_index and not quiet:
         print(
-            f"wheelgap: note: {other_index} package{'s' if other_index != 1 else ''} from other indexes "
-            f"checked against the lockfile only (not looked up on PyPI)",
+            f"wheelgap: note: --online looks up PyPI packages only; kept the locked files of {other_index} "
+            f"package{'s' if other_index != 1 else ''} from other indexes",
             file=sys.stderr,
         )
     if not args.online:

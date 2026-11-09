@@ -3,7 +3,15 @@ import json
 import pytest
 
 from wheelgap.check import Status, check
-from wheelgap.sources import Source, SourceError, find_lockfile, load_inputs, parse_requirements, pythons_outside_lock
+from wheelgap.sources import (
+    Source,
+    SourceError,
+    find_lockfile,
+    load_inputs,
+    parse_poetry_lock,
+    parse_requirements,
+    pythons_outside_lock,
+)
 from wheelgap.targets import build_targets
 
 
@@ -559,3 +567,16 @@ def test_pipfile_lock_non_string_version_raises(tmp_path):
     path.write_text(json.dumps({"default": {"requests": {"version": 2}}}), encoding="utf-8")
     with pytest.raises(SourceError, match="default.requests has a version that isn't a string"):
         load_inputs([str(path)])
+
+
+def test_poetry_lock_records_a_legacy_source_as_the_registry(tmp_path):
+    path = tmp_path / "poetry.lock"
+    path.write_text(
+        '[[package]]\nname = "purewheel"\nversion = "3.1"\n'
+        'files = [{file = "purewheel-3.1-cp313-cp313-win_amd64.whl", hash = "sha256:00"}]\n\n'
+        '[package.source]\ntype = "legacy"\nurl = "https://pkgs.example.com/simple"\nreference = "private"\n\n'
+        '[metadata]\nlock-version = "2.1"\n',
+        encoding="utf-8",
+    )
+    (pkg,) = parse_poetry_lock(path).packages
+    assert pkg.registry == "https://pkgs.example.com/simple"

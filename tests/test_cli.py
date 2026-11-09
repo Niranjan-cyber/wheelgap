@@ -840,3 +840,40 @@ def test_ignore_config_rejects_invalid_types(capsys, fixtures, tmp_path, value):
     code, out, err = run(capsys, str(tmp_path), "-p", "3.13", "-t", "linux-aarch64")
     assert code == 2 and not out
     assert "[tool.wheelgap] ignore must be a list of strings" in err
+
+
+# #114: a uv.lock package the lock says came from a private index, whose only locked wheel is a Windows one.
+PRIVATE_UV_LOCK = (
+    'version = 1\nrequires-python = ">=3.12"\n\n'
+    '[[package]]\nname = "app"\nversion = "0"\nsource = { editable = "." }\n'
+    'dependencies = [{ name = "purewheel" }]\n\n'
+    '[[package]]\nname = "purewheel"\nversion = "3.1"\n'
+    'source = { registry = "https://pkgs.example.com/simple" }\n'
+    'wheels = [{ url = "https://pkgs.example.com/purewheel-3.1-cp313-cp313-win_amd64.whl" }]\n'
+)
+
+
+# The same package in a poetry.lock, recorded through its [package.source] table.
+PRIVATE_POETRY_LOCK = (
+    '[[package]]\nname = "purewheel"\nversion = "3.1"\ndescription = ""\noptional = false\n'
+    'python-versions = ">=3.9"\ngroups = ["main"]\n'
+    "files = [\n"
+    '    {file = "purewheel-3.1-cp313-cp313-win_amd64.whl", hash = "sha256:00"},\n'
+    "]\n\n"
+    "[package.source]\n"
+    'type = "legacy"\n'
+    'url = "https://pkgs.example.com/simple"\n'
+    'reference = "private"\n\n'
+    '[metadata]\nlock-version = "2.1"\npython-versions = ">=3.9"\ncontent-hash = "00"\n'
+)
+
+
+@pytest.mark.parametrize(("name", "lock"), [("uv.lock", PRIVATE_UV_LOCK), ("poetry.lock", PRIVATE_POETRY_LOCK)])
+def test_online_keeps_private_index_packages_off_pypi(capsys, fake_pypi, tmp_path, name, lock):
+    (tmp_path / name).write_text(lock, encoding="utf-8")
+    code, out, err = run(capsys, str(tmp_path), "--online", "-p", "3.13", "-t", "linux-x86_64")
+    assert not [url for url in fake_pypi if "purewheel" in url], fake_pypi
+    # Its locked files still count: the only locked wheel is a Windows one, so there's a gap.
+    assert code == 1
+    assert "purewheel" in out
+    assert "--online looks up PyPI packages only; kept the locked files of 1 package from other indexes" in err

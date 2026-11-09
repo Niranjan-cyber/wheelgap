@@ -168,3 +168,23 @@ def test_mirror_fallback_with_no_usable_files_is_unknown(monkeypatch):
     monkeypatch.setattr(pypi, "fetch_json", lambda url, timeout=20.0: data)
     pkg = pypi.fill(Package("x", None, spec=">=1"))
     assert pkg.error == "unexpected response from the index" and pkg.files is None
+
+
+def test_fill_all_without_online_still_looks_up_a_private_package_with_no_files(fake_pypi):
+    pkg = Package(name="purewheel", version="3.1", files=None, registry="https://pkgs.example.com/simple")
+    assert pypi.fill_all([pkg]) == 0
+    assert [url for url in fake_pypi if "purewheel" in url], fake_pypi
+
+
+@pytest.mark.parametrize(
+    ("registry", "expected"),
+    [
+        (None, True),
+        ("https://pypi.org/simple", True),
+        ("https://pypi.org/simple/", True),
+        ("https://pkgs.example.com/simple", False),
+        ("https://pypi.python.org/simple", False),  # the same exact rule recheck_lock() used before
+    ],
+)
+def test_is_pypi(registry, expected):
+    assert pypi.is_pypi(registry) is expected
